@@ -9,7 +9,11 @@ public sealed class ReportService : IReportService
 {
     public byte[] CreateProductsReport(IReadOnlyCollection<Product> products, string title, CancellationToken cancellationToken = default)
     {
+        QuestPdfFontConfiguration.Configure();
+
         using var stream = new MemoryStream();
+        var generatedAt = DateTime.UtcNow;
+        var activeCount = products.Count(product => product.Status);
 
         Document.Create(container =>
         {
@@ -17,45 +21,64 @@ public sealed class ReportService : IReportService
             {
                 page.Margin(30);
                 page.Size(PageSizes.A4);
-                page.DefaultTextStyle(x => x.FontSize(11));
+                page.DefaultTextStyle(x => x.FontSize(11).FontFamily(QuestPdfFontConfiguration.DefaultFontFamily));
 
                 page.Header().Column(column =>
                 {
                     column.Item().Text(title).FontSize(20).Bold();
-                    column.Item().Text($"Generated at {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
+                    column.Item().Text($"Generated at {generatedAt:yyyy-MM-dd HH:mm} UTC");
                 });
 
-                page.Content().Table(table =>
+                page.Content().Column(column =>
                 {
-                    table.ColumnsDefinition(columns =>
+                    column.Spacing(12);
+                    column.Item().Row(row =>
                     {
-                        columns.RelativeColumn(3);
-                        columns.RelativeColumn(2);
-                        columns.RelativeColumn(1);
-                        columns.RelativeColumn(1);
-                        columns.RelativeColumn(1);
+                        row.RelativeItem().Background(Colors.Blue.Lighten5).Padding(10).Text($"Products exported: {products.Count}").SemiBold();
+                        row.RelativeItem().Background(Colors.Green.Lighten5).Padding(10).Text($"Active products: {activeCount}").SemiBold();
                     });
 
-                    table.Header(header =>
+                    if (products.Count == 0)
                     {
-                        header.Cell().Element(CellStyle).Text("Product");
-                        header.Cell().Element(CellStyle).Text("Brand");
-                        header.Cell().Element(CellStyle).Text("Price");
-                        header.Cell().Element(CellStyle).Text("Stock");
-                        header.Cell().Element(CellStyle).Text("Status");
-
-                        static IContainer CellStyle(IContainer container) => container.DefaultTextStyle(x => x.SemiBold()).PaddingVertical(6).PaddingHorizontal(4).Background(Colors.Grey.Lighten3);
-                    });
-
-                    foreach (var product in products)
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        table.Cell().PaddingVertical(4).PaddingHorizontal(4).Text(product.Name);
-                        table.Cell().PaddingVertical(4).PaddingHorizontal(4).Text(product.Brand.Name);
-                        table.Cell().PaddingVertical(4).PaddingHorizontal(4).Text($"{product.Price:C}");
-                        table.Cell().PaddingVertical(4).PaddingHorizontal(4).Text(product.Stock.ToString());
-                        table.Cell().PaddingVertical(4).PaddingHorizontal(4).Text(product.Status ? "Active" : "Inactive");
+                        column.Item()
+                            .Border(1)
+                            .BorderColor(Colors.Grey.Lighten2)
+                            .Background(Colors.Grey.Lighten5)
+                            .Padding(14)
+                            .Text("No products found for the selected filters.");
+                        return;
                     }
+
+                    column.Item().Table(table =>
+                    {
+                        table.ColumnsDefinition(columns =>
+                        {
+                            columns.RelativeColumn(3);
+                            columns.RelativeColumn(2);
+                            columns.RelativeColumn(1);
+                            columns.RelativeColumn(1);
+                            columns.RelativeColumn(1);
+                        });
+
+                        table.Header(header =>
+                        {
+                            header.Cell().Element(HeaderCellStyle).Text("Product");
+                            header.Cell().Element(HeaderCellStyle).Text("Brand");
+                            header.Cell().Element(HeaderCellStyle).Text("Price");
+                            header.Cell().Element(HeaderCellStyle).Text("Stock");
+                            header.Cell().Element(HeaderCellStyle).Text("Status");
+                        });
+
+                        foreach (var product in products)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            table.Cell().Element(BodyCellStyle).Text(product.Name);
+                            table.Cell().Element(BodyCellStyle).Text(product.Brand.Name);
+                            table.Cell().Element(BodyCellStyle).Text($"{product.Price:C}");
+                            table.Cell().Element(BodyCellStyle).Text(product.Stock.ToString());
+                            table.Cell().Element(BodyCellStyle).Text(product.Status ? "Active" : "Inactive");
+                        }
+                    });
                 });
 
                 page.Footer().AlignCenter().Text(x =>
@@ -68,5 +91,19 @@ public sealed class ReportService : IReportService
         }).GeneratePdf(stream);
 
         return stream.ToArray();
+
+        static IContainer HeaderCellStyle(IContainer container) => container
+            .BorderBottom(1)
+            .BorderColor(Colors.Grey.Lighten2)
+            .DefaultTextStyle(x => x.SemiBold())
+            .PaddingVertical(8)
+            .PaddingHorizontal(6)
+            .Background(Colors.Grey.Lighten3);
+
+        static IContainer BodyCellStyle(IContainer container) => container
+            .BorderBottom(1)
+            .BorderColor(Colors.Grey.Lighten4)
+            .PaddingVertical(6)
+            .PaddingHorizontal(6);
     }
 }

@@ -104,6 +104,7 @@ builder.Services.AddCors(options =>
 });
 
 QuestPDF.Settings.License = LicenseType.Community;
+QuestPdfFontConfiguration.Configure();
 
 var app = builder.Build();
 
@@ -113,6 +114,7 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    app.MapGet("/swagger", () => Results.Redirect("/swagger/"));
 }
 
 app.UseHttpsRedirection();

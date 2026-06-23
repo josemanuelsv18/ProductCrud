@@ -1,8 +1,11 @@
 using System.Security.Claims;
+using System.Text;
+using System.Text.RegularExpressions;
 using BCrypt.Net;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Infrastructure;
 using ProductManagement.Api.Controllers;
 using ProductManagement.Api.Data;
 using ProductManagement.Api.Domain.Entities;
@@ -15,6 +18,12 @@ namespace ProductManagement.Tests;
 
 public sealed class ControllerContractTests
 {
+    static ControllerContractTests()
+    {
+        QuestPDF.Settings.License = LicenseType.Community;
+        QuestPdfFontConfiguration.Configure();
+    }
+
     [Fact]
     public async Task Register_returns_bad_request_when_required_fields_missing()
     {
@@ -57,6 +66,78 @@ public sealed class ControllerContractTests
 
         var conflict = Assert.IsType<ConflictObjectResult>(result.Result);
         Assert.Equal("A user with the same user name or email already exists.", conflict.Value);
+    }
+
+    [Fact]
+    public async Task Register_creates_user_role_for_public_signup()
+    {
+        await using var context = CreateContext();
+        var userRoleId = SeedRole(context, "User");
+
+        var controller = new AuthController(context, new FakeTokenService());
+
+        var result = await controller.Register(new RegisterRequest("bob", "bob@example.com", "Bob", "password123"));
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<AuthResponse>(ok.Value);
+        Assert.Equal("test-token", response.Token);
+        Assert.Equal("User", response.User.Role);
+
+        var stored = await context.Users.Include(x => x.Role).SingleAsync(x => x.UserName == "bob");
+        Assert.Equal(userRoleId, stored.RoleId);
+        Assert.Equal("User", stored.Role.Name);
+    }
+
+    [Fact]
+    public async Task CreateUser_forbids_non_admin_user()
+    {
+        await using var context = CreateContext();
+        SeedRole(context, "Admin");
+        SeedRole(context, "User");
+
+        var controller = new AuthController(context, new FakeTokenService());
+        SetUser(controller, role: "User");
+
+        var result = await controller.CreateUser(new AdminCreateUserRequest("bob", "bob@example.com", "Bob", "password123", "User"));
+
+        Assert.IsType<ForbidResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task CreateUser_creates_admin_role_when_called_by_admin()
+    {
+        await using var context = CreateContext();
+        var adminRoleId = SeedRole(context, "Admin");
+        SeedRole(context, "User");
+
+        var controller = new AuthController(context, new FakeTokenService());
+        SetUser(controller, role: "Admin");
+
+        var result = await controller.CreateUser(new AdminCreateUserRequest("boss", "boss@example.com", "Boss", "password123", "Admin"));
+
+        var created = Assert.IsType<CreatedAtActionResult>(result.Result);
+        var response = Assert.IsType<AuthUserResponse>(created.Value);
+        Assert.Equal("Admin", response.Role);
+
+        var stored = await context.Users.Include(x => x.Role).SingleAsync(x => x.UserName == "boss");
+        Assert.Equal(adminRoleId, stored.RoleId);
+        Assert.Equal("Admin", stored.Role.Name);
+    }
+
+    [Fact]
+    public async Task CreateUser_returns_bad_request_for_invalid_role()
+    {
+        await using var context = CreateContext();
+        SeedRole(context, "Admin");
+        SeedRole(context, "User");
+
+        var controller = new AuthController(context, new FakeTokenService());
+        SetUser(controller, role: "Admin");
+
+        var result = await controller.CreateUser(new AdminCreateUserRequest("boss", "boss@example.com", "Boss", "password123", "Manager"));
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.Equal("Role must be either User or Admin.", badRequest.Value);
     }
 
     [Fact]
@@ -238,6 +319,46 @@ public sealed class ControllerContractTests
     }
 
     [Fact]
+    public void ReportService_generates_non_empty_pdf_for_products()
+    {
+        var brand = new Brand { Id = 1, Name = "Acme" };
+        var reportService = new ReportService();
+
+        var bytes = reportService.CreateProductsReport(
+        [
+            new Product
+            {
+                Id = Guid.NewGuid(),
+                Name = "Runner",
+                BrandId = brand.Id,
+                Brand = brand,
+                Price = 120m,
+                Stock = 8,
+                Status = true,
+                UsuarioCreacion = "seed-user",
+                FechaCreacion = DateTime.UtcNow
+            }
+        ],
+        "Products Report");
+
+        Assert.NotEmpty(bytes);
+        Assert.StartsWith("%PDF", System.Text.Encoding.ASCII.GetString(bytes, 0, 4));
+        Assert.True(PdfContainsTextOperators(bytes));
+    }
+
+    [Fact]
+    public void ReportService_generates_non_empty_pdf_for_empty_state()
+    {
+        var reportService = new ReportService();
+
+        var bytes = reportService.CreateProductsReport([], "Products Report");
+
+        Assert.NotEmpty(bytes);
+        Assert.StartsWith("%PDF", System.Text.Encoding.ASCII.GetString(bytes, 0, 4));
+        Assert.True(PdfContainsTextOperators(bytes));
+    }
+
+    [Fact]
     public async Task GetById_returns_not_found_for_inactive_product_when_user_is_not_admin()
     {
         await using var context = CreateContext();
@@ -344,6 +465,36 @@ public sealed class ControllerContractTests
             RoleId = roleId
         });
         context.SaveChanges();
+    }
+
+    private static bool PdfContainsTextOperators(byte[] bytes)
+    {
+        var document = Encoding.Latin1.GetString(bytes);
+
+        foreach (Match match in Regex.Matches(document, "stream\\r?\\n(?<content>.*?)\\r?\\nendstream", RegexOptions.Singleline))
+        {
+            var rawStream = Encoding.Latin1.GetBytes(match.Groups["content"].Value);
+
+            try
+            {
+                using var compressed = new MemoryStream(rawStream);
+                using var zlib = new System.IO.Compression.ZLibStream(compressed, System.IO.Compression.CompressionMode.Decompress);
+                using var output = new MemoryStream();
+                zlib.CopyTo(output);
+
+                var content = Encoding.Latin1.GetString(output.ToArray());
+                if (content.Contains("BT", StringComparison.Ordinal) && content.Contains("ET", StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+                // Skip streams that are not text content compressed with zlib.
+            }
+        }
+
+        return false;
     }
 
     private sealed class FakeTokenService : ITokenService

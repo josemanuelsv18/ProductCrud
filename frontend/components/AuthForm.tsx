@@ -19,18 +19,17 @@ export function AuthForm({ mode }: Props) {
     setError(null);
 
     try {
-      const result =
-        mode === 'login'
-          ? await api.login({
-              identifier: String(formData.get('identifier') ?? ''),
-              password: String(formData.get('password') ?? '')
-            })
-          : await api.register({
-              userName: String(formData.get('userName') ?? ''),
-              email: String(formData.get('email') ?? ''),
-              fullName: String(formData.get('fullName') ?? ''),
-              password: String(formData.get('password') ?? '')
-            });
+      const result = mode === 'login'
+        ? await api.login({
+            identifier: String(formData.get('identifier') ?? ''),
+            password: String(formData.get('password') ?? '')
+          })
+        : await api.register({
+            userName: String(formData.get('userName') ?? ''),
+            email: String(formData.get('email') ?? ''),
+            fullName: String(formData.get('fullName') ?? ''),
+            password: String(formData.get('password') ?? '')
+          });
 
       saveSession(result);
       router.push('/products');
@@ -53,7 +52,7 @@ export function AuthForm({ mode }: Props) {
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-brand-600">Northstep Studio</p>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">{mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}</h1>
         <p className="mt-1 text-sm text-slate-600">
-          {mode === 'login' ? 'Accede al catálogo de calzado.' : 'Crea una cuenta para gestionar productos.'}
+          {mode === 'login' ? 'Accede al catálogo de calzado.' : 'Crea una cuenta con rol User para acceder al catálogo.'}
         </p>
       </div>
 

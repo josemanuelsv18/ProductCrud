@@ -1,4 +1,4 @@
-import type { AuthResponse, Brand, PagedResult, Product } from '@/lib/types';
+import type { AuthResponse, Brand, CreateUserResponse, PagedResult, Product } from '@/lib/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000';
 
@@ -35,6 +35,8 @@ export const api = {
     request<AuthResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   register: (body: { userName: string; email: string; fullName: string; password: string }) =>
     request<AuthResponse>('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
+  createUser: (body: { userName: string; email: string; fullName: string; password: string; role: string }, token: string) =>
+    request<CreateUserResponse>('/api/auth/users', { method: 'POST', body: JSON.stringify(body) }, token),
   brands: (token: string) => request<Brand[]>('/api/brands', {}, token),
   products: (query: Record<string, string | number | boolean | undefined>, token: string) => {
     const params = new URLSearchParams();
@@ -45,6 +47,7 @@ export const api = {
     });
     return request<PagedResult<Product>>(`/api/products?${params.toString()}`, {}, token);
   },
+  product: (id: string, token: string) => request<Product>(`/api/products/${id}`, {}, token),
   createProduct: (body: unknown, token: string) => request<Product>('/api/products', { method: 'POST', body: JSON.stringify(body) }, token),
   updateProduct: (id: string, body: unknown, token: string) => request<Product>(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   deleteProduct: (id: string, token: string) => request<void>(`/api/products/${id}`, { method: 'DELETE' }, token),

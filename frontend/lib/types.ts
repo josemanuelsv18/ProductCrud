@@ -11,6 +11,8 @@ export type AuthResponse = {
   user: AuthUser;
 };
 
+export type CreateUserResponse = AuthUser;
+
 export type Brand = {
   id: number;
   name: string;

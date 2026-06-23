@@ -19,6 +19,14 @@ type ProductFormState = {
   status: boolean;
 };
 
+type UserFormState = {
+  userName: string;
+  fullName: string;
+  email: string;
+  password: string;
+  role: 'User' | 'Admin';
+};
+
 const initialForm: ProductFormState = {
   name: '',
   description: '',
@@ -27,6 +35,14 @@ const initialForm: ProductFormState = {
   stock: '',
   brandId: '',
   status: true
+};
+
+const initialUserForm: UserFormState = {
+  userName: '',
+  fullName: '',
+  email: '',
+  password: '',
+  role: 'User'
 };
 
 export function ProductImageCell({ product }: { product: Pick<Product, 'name' | 'imageUrl'> }) {
@@ -76,8 +92,13 @@ export function ProductManager() {
   const [brandId, setBrandId] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [creatingUser, setCreatingUser] = useState(false);
+  const [downloadingReport, setDownloadingReport] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [userError, setUserError] = useState<string | null>(null);
+  const [userSuccess, setUserSuccess] = useState<string | null>(null);
   const [form, setForm] = useState<ProductFormState>(initialForm);
+  const [userForm, setUserForm] = useState<UserFormState>(initialUserForm);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(totalCount / pageSize)), [pageSize, totalCount]);
   const activeCount = useMemo(() => items.filter((product) => product.status).length, [items]);
@@ -148,6 +169,10 @@ export function ProductManager() {
     setForm(initialForm);
   }
 
+  function resetUserForm() {
+    setUserForm(initialUserForm);
+  }
+
   async function submitForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!token) return;
@@ -206,6 +231,8 @@ export function ProductManager() {
     if (!token) return;
 
     try {
+      setDownloadingReport(true);
+      setError(null);
       const url = api.productReportUrl({ search, brandId: brandId || undefined, includeInactive: isAdmin });
       const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
 
@@ -216,13 +243,52 @@ export function ProductManager() {
       }
 
       const blob = await response.blob();
+      if (blob.size === 0) {
+        setError('El reporte PDF llegó vacío.');
+        return;
+      }
+
       const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
+      const objectUrl = URL.createObjectURL(blob);
+      link.href = objectUrl;
       link.download = 'products-report.pdf';
+      document.body.appendChild(link);
       link.click();
-      URL.revokeObjectURL(link.href);
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
     } catch {
       setError('No se pudo descargar el reporte PDF.');
+    } finally {
+      setDownloadingReport(false);
+    }
+  }
+
+  async function submitUserForm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token || !isAdmin) return;
+
+    setCreatingUser(true);
+    setUserError(null);
+    setUserSuccess(null);
+
+    try {
+      const createdUser = await api.createUser(
+        {
+          userName: userForm.userName,
+          fullName: userForm.fullName,
+          email: userForm.email,
+          password: userForm.password,
+          role: userForm.role
+        },
+        token
+      );
+
+      resetUserForm();
+      setUserSuccess(`Usuario ${createdUser.userName} creado con rol ${createdUser.role}.`);
+    } catch (err) {
+      setUserError(err instanceof Error ? err.message : 'No se pudo crear el usuario.');
+    } finally {
+      setCreatingUser(false);
     }
   }
 
@@ -249,7 +315,9 @@ export function ProductManager() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <button className="button-secondary" onClick={downloadReport}>Descargar PDF</button>
+              <button className="button-secondary" disabled={downloadingReport} onClick={downloadReport}>
+                {downloadingReport ? 'Descargando PDF...' : 'Descargar PDF'}
+              </button>
               <button className="button-secondary" onClick={logout}>Cerrar sesión</button>
             </div>
           </div>
@@ -379,52 +447,94 @@ export function ProductManager() {
           </div>
         </section>
 
-        <section className="card space-y-4 p-6">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-950">{form.id ? 'Editar producto' : 'Agregar producto'}</h2>
-            <p className="text-sm text-slate-600">{isAdmin ? 'Puedes crear y editar productos.' : 'Estás viendo el catálogo en modo lectura.'}</p>
-          </div>
-
-          {isAdmin ? (
-            <form className="space-y-3" onSubmit={submitForm}>
-              <input className="input" placeholder="Nombre" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-              <textarea className="input min-h-28" placeholder="Descripción" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-              <input
-                className="input"
-                type="url"
-                placeholder="URL HTTPS de imagen (opcional)"
-                value={form.imageUrl}
-                onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-              />
-              <p className="text-xs text-slate-500">Usa una imagen HTTPS o deja este campo vacío.</p>
-
-              <ProductImagePreview imageUrl={form.imageUrl} />
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <input className="input" type="number" step="0.01" min="0.01" placeholder="Precio" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required />
-                <input className="input" type="number" min="0" placeholder="Stock" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} required />
-              </div>
-
-              <select className="input" value={form.brandId} onChange={(e) => setForm({ ...form, brandId: e.target.value })} required>
-                <option value="">Selecciona una marca</option>
-                {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-              </select>
-
-              <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" checked={form.status} onChange={(e) => setForm({ ...form, status: e.target.checked })} /> Activo
-              </label>
-
-              <div className="flex flex-wrap gap-3">
-                <button className="button-primary" disabled={saving} type="submit">{saving ? 'Guardando...' : form.id ? 'Actualizar producto' : 'Crear producto'}</button>
-                <button className="button-secondary" type="button" onClick={resetForm}>Limpiar</button>
-              </div>
-            </form>
-          ) : (
-            <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-              Necesitas una cuenta administradora para crear, editar o desactivar productos.
+        <div className="space-y-6">
+          <section className="card space-y-4 p-6">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-950">Permisos del rol</h2>
+              <p className="text-sm text-slate-600">Tu acceso actual depende del rol guardado en la sesión.</p>
             </div>
+
+            <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
+              <p><span className="font-semibold">Admin:</span> crea usuarios con rol User o Admin, crea/edita/desactiva productos, ve inactivos y descarga reportes PDF.</p>
+              <p className="mt-2"><span className="font-semibold">User:</span> puede registrarse desde login, iniciar sesión, consultar el catálogo activo, buscar, filtrar y descargar el PDF del catálogo visible.</p>
+            </div>
+          </section>
+
+          <section className="card space-y-4 p-6">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-950">{form.id ? 'Editar producto' : 'Agregar producto'}</h2>
+              <p className="text-sm text-slate-600">{isAdmin ? 'Puedes crear y editar productos.' : 'Estás viendo el catálogo en modo lectura.'}</p>
+            </div>
+
+            {isAdmin ? (
+              <form className="space-y-3" onSubmit={submitForm}>
+                <input className="input" placeholder="Nombre" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+                <textarea className="input min-h-28" placeholder="Descripción" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                <input
+                  className="input"
+                  type="url"
+                  placeholder="URL HTTPS de imagen (opcional)"
+                  value={form.imageUrl}
+                  onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                />
+                <p className="text-xs text-slate-500">Usa una imagen HTTPS o deja este campo vacío.</p>
+
+                <ProductImagePreview imageUrl={form.imageUrl} />
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input className="input" type="number" step="0.01" min="0.01" placeholder="Precio" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required />
+                  <input className="input" type="number" min="0" placeholder="Stock" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} required />
+                </div>
+
+                <select className="input" value={form.brandId} onChange={(e) => setForm({ ...form, brandId: e.target.value })} required>
+                  <option value="">Selecciona una marca</option>
+                  {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                </select>
+
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input type="checkbox" checked={form.status} onChange={(e) => setForm({ ...form, status: e.target.checked })} /> Activo
+                </label>
+
+                <div className="flex flex-wrap gap-3">
+                  <button className="button-primary" disabled={saving} type="submit">{saving ? 'Guardando...' : form.id ? 'Actualizar producto' : 'Crear producto'}</button>
+                  <button className="button-secondary" type="button" onClick={resetForm}>Limpiar</button>
+                </div>
+              </form>
+            ) : (
+              <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+                Necesitas una cuenta administradora para crear, editar o desactivar productos.
+              </div>
+            )}
+          </section>
+
+          {isAdmin && (
+            <section className="card space-y-4 p-6">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">Crear usuario</h2>
+                <p className="text-sm text-slate-600">Desde aquí puedes crear cuentas con rol User o Admin.</p>
+              </div>
+
+              {userError && <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{userError}</div>}
+              {userSuccess && <div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{userSuccess}</div>}
+
+              <form className="space-y-3" onSubmit={submitUserForm}>
+                <input className="input" placeholder="Usuario" value={userForm.userName} onChange={(e) => setUserForm({ ...userForm, userName: e.target.value })} required />
+                <input className="input" placeholder="Nombre completo" value={userForm.fullName} onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })} required />
+                <input className="input" type="email" placeholder="Correo electrónico" value={userForm.email} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} required />
+                <input className="input" type="password" placeholder="Contraseña" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} required />
+                <select className="input" value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value as UserFormState['role'] })}>
+                  <option value="User">User</option>
+                  <option value="Admin">Admin</option>
+                </select>
+
+                <div className="flex flex-wrap gap-3">
+                  <button className="button-primary" disabled={creatingUser} type="submit">{creatingUser ? 'Creando...' : `Crear usuario ${userForm.role}`}</button>
+                  <button className="button-secondary" type="button" onClick={resetUserForm}>Limpiar</button>
+                </div>
+              </form>
+            </section>
           )}
-        </section>
+        </div>
       </div>
     </div>
   );

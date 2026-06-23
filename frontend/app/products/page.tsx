@@ -1,5 +1,5 @@
-import { ProductManager } from '@/components/ProductManager';
+import { ProductsHome } from '@/components/ProductsHome';
 
 export default function ProductsPage() {
-  return <ProductManager />;
+  return <ProductsHome />;
 }

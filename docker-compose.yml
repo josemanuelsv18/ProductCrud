@@ -1,0 +1,71 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: product-management-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-product_management}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/ProductManagement.Api/Dockerfile
+    container_name: product-management-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      CONNECTION_STRING: ${CONNECTION_STRING:-Host=postgres;Port=5432;Database=product_management;Username=postgres;Password=postgres;Include Error Detail=true}
+      ConnectionStrings__DefaultConnection: ${CONNECTION_STRING:-Host=postgres;Port=5432;Database=product_management;Username=postgres;Password=postgres;Include Error Detail=true}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-DevelopmentComposeJwtKeyMustBe32Bytes!!}
+      Jwt__Key: ${JWT_SIGNING_KEY:-DevelopmentComposeJwtKeyMustBe32Bytes!!}
+      JWT_ISSUER: ${JWT_ISSUER:-ProductManagement.Api}
+      Jwt__Issuer: ${JWT_ISSUER:-ProductManagement.Api}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-ProductManagement.Frontend}
+      Jwt__Audience: ${JWT_AUDIENCE:-ProductManagement.Frontend}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      Cors__AllowedOrigins__0: ${CORS_ORIGIN:-http://localhost:3000}
+      SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
+      SeedAdmin__UserName: ${SEED_ADMIN_USERNAME:-admin}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@local.dev}
+      SeedAdmin__Email: ${SEED_ADMIN_EMAIL:-admin@local.dev}
+      SEED_ADMIN_FULL_NAME: ${SEED_ADMIN_FULL_NAME:-Local Admin}
+      SeedAdmin__FullName: ${SEED_ADMIN_FULL_NAME:-Local Admin}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin123*}
+      SeedAdmin__Password: ${SEED_ADMIN_PASSWORD:-Admin123*}
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    container_name: product-management-frontend
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:

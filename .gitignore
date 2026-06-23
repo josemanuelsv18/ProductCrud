@@ -1,0 +1,44 @@
+/.DS_Store
+
+# .NET
+**/bin/
+**/obj/
+*.user
+*.suo
+*.psess
+*.vsp
+*.vspscc
+*.pidb
+*.svclog
+*.pdb
+*.cache
+
+# ASP.NET
+appsettings.*.local.json
+secrets.json
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+
+# Misc
+logs/
+tmp/
+
+# Agent files
+.atl/
+session-*.md
+AGENTS.md

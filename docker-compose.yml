@@ -4,9 +4,9 @@ services:
     container_name: product-management-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-product_management}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${PRODUCT_MANAGEMENT_POSTGRES_DB:-product_management}
+      POSTGRES_USER: ${PRODUCT_MANAGEMENT_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${PRODUCT_MANAGEMENT_POSTGRES_PASSWORD:-postgres}
     ports:
       - "5432:5432"
     volumes:
@@ -30,24 +30,24 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
-      CONNECTION_STRING: ${CONNECTION_STRING:-Host=postgres;Port=5432;Database=product_management;Username=postgres;Password=postgres;Include Error Detail=true}
-      ConnectionStrings__DefaultConnection: ${CONNECTION_STRING:-Host=postgres;Port=5432;Database=product_management;Username=postgres;Password=postgres;Include Error Detail=true}
-      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-DevelopmentComposeJwtKeyMustBe32Bytes!!}
-      Jwt__Key: ${JWT_SIGNING_KEY:-DevelopmentComposeJwtKeyMustBe32Bytes!!}
-      JWT_ISSUER: ${JWT_ISSUER:-ProductManagement.Api}
-      Jwt__Issuer: ${JWT_ISSUER:-ProductManagement.Api}
-      JWT_AUDIENCE: ${JWT_AUDIENCE:-ProductManagement.Frontend}
-      Jwt__Audience: ${JWT_AUDIENCE:-ProductManagement.Frontend}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
-      Cors__AllowedOrigins__0: ${CORS_ORIGIN:-http://localhost:3000}
-      SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
-      SeedAdmin__UserName: ${SEED_ADMIN_USERNAME:-admin}
-      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@local.dev}
-      SeedAdmin__Email: ${SEED_ADMIN_EMAIL:-admin@local.dev}
-      SEED_ADMIN_FULL_NAME: ${SEED_ADMIN_FULL_NAME:-Local Admin}
-      SeedAdmin__FullName: ${SEED_ADMIN_FULL_NAME:-Local Admin}
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin123*}
-      SeedAdmin__Password: ${SEED_ADMIN_PASSWORD:-Admin123*}
+      CONNECTION_STRING: ${PRODUCT_MANAGEMENT_CONNECTION_STRING:-Host=postgres;Port=5432;Database=product_management;Username=postgres;Password=postgres;Include Error Detail=true}
+      ConnectionStrings__DefaultConnection: ${PRODUCT_MANAGEMENT_CONNECTION_STRING:-Host=postgres;Port=5432;Database=product_management;Username=postgres;Password=postgres;Include Error Detail=true}
+      JWT_SIGNING_KEY: ${PRODUCT_MANAGEMENT_JWT_SIGNING_KEY:-DevelopmentComposeJwtKeyMustBe32Bytes!!}
+      Jwt__Key: ${PRODUCT_MANAGEMENT_JWT_SIGNING_KEY:-DevelopmentComposeJwtKeyMustBe32Bytes!!}
+      JWT_ISSUER: ${PRODUCT_MANAGEMENT_JWT_ISSUER:-ProductManagement.Api}
+      Jwt__Issuer: ${PRODUCT_MANAGEMENT_JWT_ISSUER:-ProductManagement.Api}
+      JWT_AUDIENCE: ${PRODUCT_MANAGEMENT_JWT_AUDIENCE:-ProductManagement.Frontend}
+      Jwt__Audience: ${PRODUCT_MANAGEMENT_JWT_AUDIENCE:-ProductManagement.Frontend}
+      CORS_ORIGIN: ${PRODUCT_MANAGEMENT_CORS_ORIGIN:-http://localhost:3000}
+      Cors__AllowedOrigins__0: ${PRODUCT_MANAGEMENT_CORS_ORIGIN:-http://localhost:3000}
+      SEED_ADMIN_USERNAME: ${PRODUCT_MANAGEMENT_SEED_ADMIN_USERNAME:-admin}
+      SeedAdmin__UserName: ${PRODUCT_MANAGEMENT_SEED_ADMIN_USERNAME:-admin}
+      SEED_ADMIN_EMAIL: ${PRODUCT_MANAGEMENT_SEED_ADMIN_EMAIL:-admin@local.dev}
+      SeedAdmin__Email: ${PRODUCT_MANAGEMENT_SEED_ADMIN_EMAIL:-admin@local.dev}
+      SEED_ADMIN_FULL_NAME: ${PRODUCT_MANAGEMENT_SEED_ADMIN_FULL_NAME:-Local Admin}
+      SeedAdmin__FullName: ${PRODUCT_MANAGEMENT_SEED_ADMIN_FULL_NAME:-Local Admin}
+      SEED_ADMIN_PASSWORD: ${PRODUCT_MANAGEMENT_SEED_ADMIN_PASSWORD:-Admin123*}
+      SeedAdmin__Password: ${PRODUCT_MANAGEMENT_SEED_ADMIN_PASSWORD:-Admin123*}
     ports:
       - "8080:8080"
 
@@ -69,3 +69,4 @@ services:
 
 volumes:
   postgres_data:
+    name: product_management_postgres_data
